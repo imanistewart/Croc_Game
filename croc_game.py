@@ -1,9 +1,58 @@
 import pygame
 import sys
 import os
+import random
+import math
 
 # Initialize Pygame
 pygame.init()
+
+# Confetti particle system
+class ConfettiParticle:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.size = random.randint(5, 10)
+        self.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        self.speed = random.uniform(2, 5)
+        self.angle = random.uniform(0, math.pi * 2)
+        self.rotation_speed = random.uniform(-0.1, 0.1)
+        self.rotation = 0
+        self.gravity = 0.1
+        self.life = 100  # Frames to live
+
+    def update(self):
+        self.x += math.cos(self.angle) * self.speed
+        self.y += math.sin(self.angle) * self.speed + self.gravity
+        self.rotation += self.rotation_speed
+        self.life -= 1
+        self.gravity += 0.05
+
+    def draw(self, screen):
+        if self.life > 0:
+            surf = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+            pygame.draw.rect(surf, self.color, (0, 0, self.size, self.size))
+            rotated = pygame.transform.rotate(surf, math.degrees(self.rotation))
+            screen.blit(rotated, (self.x - rotated.get_width()/2, self.y - rotated.get_height()/2))
+
+class ConfettiSystem:
+    def __init__(self):
+        self.particles = []
+        self.max_particles = 200
+
+    def add_particle(self, x, y):
+        if len(self.particles) < self.max_particles:
+            self.particles.append(ConfettiParticle(x, y))
+
+    def update(self):
+        for particle in self.particles[:]:
+            particle.update()
+            if particle.life <= 0:
+                self.particles.remove(particle)
+
+    def draw(self, screen):
+        for particle in self.particles:
+            particle.draw(screen)
 
 # Screen settings
 WIDTH, HEIGHT = 800, 600
@@ -139,6 +188,10 @@ show_final_image = False
 # Clock
 clock = pygame.time.Clock()
 
+# Confetti system
+confetti = ConfettiSystem()
+confetti_spawn_timer = 0
+
 # Main game loop
 running = True
 while running:
@@ -208,16 +261,24 @@ while running:
                             piece["clicks"] += 1
                             ding_sound.play()
 
+    # Update confetti
+    if show_final_image:
+        confetti_spawn_timer += 1
+        if confetti_spawn_timer >= 2:  # Spawn new particles every 2 frames
+            confetti_spawn_timer = 0
+            for _ in range(5):  # Spawn 5 particles at a time
+                confetti.add_particle(random.randint(0, WIDTH), -10)  # Spawn from top of screen
+        confetti.update()
+
     # ========== Screens ==========
     if show_start_menu:
         # Title
         title = big_font.render("Crocodile Lego Builder", True, BLACK)
         screen.blit(title, ((WIDTH - title.get_width()) // 2, 50))
 
-        # Final assembled image
-        assembled_scaled = pygame.transform.scale(final_assembled, (final_assembled.get_width() // 2, final_assembled.get_height() // 2))
-        assembled_pos = ((WIDTH - assembled_scaled.get_width()) // 2, (HEIGHT - assembled_scaled.get_height()) // 2 - 50)
-        screen.blit(assembled_scaled, assembled_pos)
+        # Final assembled image at full size
+        assembled_pos = ((WIDTH - final_assembled.get_width()) // 2, (HEIGHT - final_assembled.get_height()) // 2 - 50)
+        screen.blit(final_assembled, assembled_pos)
 
         # Start message
         start_msg = font.render("Click anywhere to start.", True, BLACK)
@@ -255,6 +316,7 @@ while running:
         screen.blit(congrats, ((WIDTH - congrats.get_width()) // 2, 30))
         exit_text = font.render("Click to exit.", True, BLACK)
         screen.blit(exit_text, ((WIDTH - exit_text.get_width()) // 2, HEIGHT - 50))
+        confetti.draw(screen)  # Draw confetti on top of everything
 
     else:
         # Step label
